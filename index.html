@@ -75,7 +75,25 @@
         <hr style="border:none;border-top:1px solid var(--line);margin:18px 0">
         <div class="toolbar"><input id="searchInput" placeholder="Cerca per nome, produttore, vitigno, territorio o posizione"><select id="filterMaturity"><option value="Tutte">Tutte le maturità</option><option value="Da attendere">Da attendere</option><option value="All'apice">All'apice</option><option value="Pronta">Pronta</option></select><button class="ghost" id="exportBtn" type="button">Esporta JSON</button><label class="ghost" style="display:inline-flex;align-items:center;justify-content:center;cursor:pointer">Importa JSON<input id="importFile" type="file" accept="application/json" hidden></label></div>
         <div class="tabrow"><button class="ghost tab active" type="button" data-tab="bottiglie">Bottiglie</button><button class="ghost tab" type="button" data-tab="produttori">Produttori</button><button class="ghost tab" type="button" data-tab="territori">Territori</button></div>
-        <div id="panel-bottiglie"><div id="cards" class="cards"></div><div id="empty" class="empty hidden">Nessuna bottiglia ancora inserita.</div></div>
+        <div id="panel-bottiglie">
+          <div style="overflow:auto;border:1px solid var(--line);border-radius:18px;background:#fff">
+            <table style="width:100%;border-collapse:collapse;min-width:980px">
+              <thead style="background:#f6f1ea">
+                <tr>
+                  <th style="text-align:left;padding:12px;border-bottom:1px solid var(--line)">Vino</th>
+                  <th style="text-align:left;padding:12px;border-bottom:1px solid var(--line)">Annata</th>
+                  <th style="text-align:left;padding:12px;border-bottom:1px solid var(--line)">Produttore</th>
+                  <th style="text-align:left;padding:12px;border-bottom:1px solid var(--line)">Vitigno</th>
+                  <th style="text-align:left;padding:12px;border-bottom:1px solid var(--line)">Territorio</th>
+                  <th style="text-align:left;padding:12px;border-bottom:1px solid var(--line)">Qtà</th>
+                  <th style="text-align:left;padding:12px;border-bottom:1px solid var(--line)">Maturità</th>
+                </tr>
+              </thead>
+              <tbody id="wineRows"></tbody>
+            </table>
+          </div>
+          <div id="empty" class="empty hidden">Nessuna bottiglia ancora inserita.</div>
+        </div>
         <div id="panel-produttori" class="hidden"></div>
         <div id="panel-territori" class="hidden"></div>
       </article>
@@ -103,9 +121,18 @@
       el('statReady').textContent=wines.filter(w=>w.maturita==='Pronta').reduce((s,w)=>s+Number(w.quantita||0),0);
       const list=filtered();
       el('empty').classList.toggle('hidden',list.length>0);
-      el('cards').innerHTML=list.map(w=>`<article class="card"><div class="top"><div class="thumb">${w.foto?`<img src="${w.foto}" alt="Foto etichetta">`:'🍷'}</div><div><h3 class="title">${esc(w.nome)}</h3><div class="meta">${esc(w.annata)} · ${esc(w.produttore)}</div><span class="pill">${esc(w.maturita)}</span><span class="pill">${esc(w.vitigno)}</span><span class="pill">${esc(w.quantita)} bt</span></div></div><div class="details"><div><span>Territorio</span><strong>${esc(w.territorio)}</strong></div><div><span>Prezzo</span><strong>${w.prezzo?money(w.prezzo):'—'}</strong></div><div><span>Acquisto</span><strong>${fmtDate(w.dataAcquisto)}</strong></div><div><span>Posizione</span><strong>${esc(w.posizione||'—')}</strong></div></div><div class="note">${esc(w.note||'Nessuna nota')}</div><div class="actions"><button class="ghost" data-edit="${w.id}" type="button">Modifica</button><button class="ghost" data-del="${w.id}" type="button">Elimina</button></div></article>`).join('');
-      document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>edit(b.dataset.edit));
-      document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>remove(b.dataset.del));
+      el('wineRows').innerHTML=list.map(w=>`<tr data-id="${w.id}" style="cursor:pointer">
+        <td style="padding:12px;border-bottom:1px solid var(--line);font-weight:700">${esc(w.nome)}</td>
+        <td style="padding:12px;border-bottom:1px solid var(--line)">${esc(w.annata)}</td>
+        <td style="padding:12px;border-bottom:1px solid var(--line)">${esc(w.produttore)}</td>
+        <td style="padding:12px;border-bottom:1px solid var(--line)">${esc(w.vitigno)}</td>
+        <td style="padding:12px;border-bottom:1px solid var(--line)">${esc(w.territorio)}</td>
+        <td style="padding:12px;border-bottom:1px solid var(--line)">${esc(w.quantita)}</td>
+        <td style="padding:12px;border-bottom:1px solid var(--line)">${esc(w.maturita)}</td>
+      </tr><tr class="detail-row" data-detail="${w.id}" style="display:none"><td colspan="7" style="padding:0;border-bottom:1px solid var(--line)"><div style="padding:14px;background:#faf7f2;display:grid;gap:8px"><div><strong>Prezzo:</strong> ${w.prezzo?money(w.prezzo):'—'}</div><div><strong>Acquisto:</strong> ${fmtDate(w.dataAcquisto)}</div><div><strong>Posizione:</strong> ${esc(w.posizione||'—')}</div><div><strong>Note:</strong> ${esc(w.note||'Nessuna nota')}</div><div><strong>Foto:</strong> ${w.foto?'Sì':'No'}</div><div class="actions"><button class="ghost" data-edit="${w.id}" type="button">Modifica</button><button class="ghost" data-del="${w.id}" type="button">Elimina</button></div></div></td></tr>`).join('');
+      document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=e=>{e.stopPropagation();edit(b.dataset.edit)});
+      document.querySelectorAll('[data-del]').forEach(b=>b.onclick=e=>{e.stopPropagation();remove(b.dataset.del)});
+      document.querySelectorAll('tr[data-id]').forEach(tr=>tr.onclick=()=>{const d=tr.nextElementSibling; if(d) d.style.display=d.style.display==='none'?'table-row':'none';});
       renderGroup(el('panel-produttori'),'produttore');
       renderGroup(el('panel-territori'),'territorio');
       save();
