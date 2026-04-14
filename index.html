@@ -235,6 +235,9 @@
     el('exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify(wines,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='cantinaal.json';a.click();toast('Esportato')};
     el('importFile').onchange=async e=>{const f=e.target.files[0]; if(!f)return; try{wines=JSON.parse(await f.text()); render(); toast('Importato')}catch{toast('File non valido')} e.target.value=''};
     loadWines(); setTab('bottiglie');
+    if(supabase){
+      supabase.channel('wines-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'wines' }, () => loadWines()).subscribe();
+    }
     if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}))}
   </script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
