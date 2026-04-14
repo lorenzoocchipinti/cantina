@@ -1,0 +1,16 @@
+{
+  "name": "CantinaAL",
+  "short_name": "CantinaAL",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#f6f2ed",
+  "theme_color": "#6d2433",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%236d2433'/%3E%3Cpath d='M64 36h64c0 22-8 38-19 45v31c18 6 30 21 30 39a16 16 0 0 1-16 16H69a16 16 0 0 1-16-16c0-18 12-33 30-39V81c-11-7-19-23-19-45Z' fill='none' stroke='white' stroke-width='10'/%3E%3Cpath d='M70 63h52' stroke='white' stroke-width='10' stroke-linecap='round'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}
