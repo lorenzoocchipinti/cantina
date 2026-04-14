@@ -239,6 +239,7 @@
       supabase.channel('wines-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'wines' }, () => loadWines()).subscribe();
     }
     if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}))}
+    // ENABLE REALTIME: ensure public.wines is included in the supabase_realtime publication in Supabase dashboard / database > replication or publications.
   </script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </body>
