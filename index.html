@@ -105,15 +105,15 @@
     const SUPABASE_URL = 'https://gximycmwiwaalcxnrihw.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd4aW15bWN3aXdhYWxjeG5yaGh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxNzM5MjQsImV4cCI6MjA5MTc0OTkyNH0.usUS1vn54Sja4Q_3VJXmE4Q6Gu05wThHbyyCXCcdfBo';
     const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
-
     const STORAGE_KEY='cantinaal-v1'; let wines=[]; let query=''; let maturity='Tutte';
     const el=id=>document.getElementById(id);
     const toast=t=>{const x=el('toast');x.textContent=t;x.classList.add('show');setTimeout(()=>x.classList.remove('show'),1800)};
     const money=v=>new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR'}).format(Number(v||0));
     const uid=()=>crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random());
     const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-    const fmtDate=d=>d?d.split('-').reverse().join('/'):'—';
-    const load=()=>{try{wines=JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]')}catch{wines=[]}}; const save=()=>localStorage.setItem(STORAGE_KEY,JSON.stringify(wines));
+    const fmtDate=d=>d?d.split('-').reverse().join('/'):'';
+    const load=()=>{try{wines=JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]')}catch{wines=[]}};
+    const save=()=>localStorage.setItem(STORAGE_KEY,JSON.stringify(wines));
     const filtered=()=>wines.filter(w=>{const hay=[w.nome,w.annata,w.produttore,w.vitigno,w.territorio,w.posizione,w.note].join(' ').toLowerCase();return (!query||hay.includes(query))&&(maturity==='Tutte'||w.maturita===maturity)}).sort((a,b)=>a.nome.localeCompare(b.nome));
     const grouped=key=>{const m={}; wines.forEach(w=>{const k=w[key]||'Non indicato'; if(!m[k]) m[k]={key:k,labels:0,qty:0}; m[k].labels++; m[k].qty+=Number(w.quantita||0)}); return Object.values(m).sort((a,b)=>b.qty-a.qty||a.key.localeCompare(b.key));};
     function renderGroup(target,key){ target.innerHTML = grouped(key).map(x=>`<div class="card"><strong>${esc(x.key)}</strong><div class="meta">${x.labels} etichette · ${x.qty} bottiglie</div></div>`).join('') || '<div class="empty">Nessun dato.</div>'; }
@@ -141,8 +141,9 @@
       }));
       render();
     }
+
     async function saveWine(rec){
-      if(!supabase){ return false; }
+      if(!supabase) return true;
       const payload = {
         id: rec.id,
         nome: rec.nome,
@@ -158,17 +159,46 @@
         note: rec.note || null,
         foto: rec.foto || null
       };
-      const { error } = await supabase.from('wines').upsert(payload);
+      const { error } = await supabase.from('wines').upsert(payload).select();
       if(error) { console.error(error); toast('Errore salvataggio'); return false; }
-      return true;
-    }
-    async function deleteWine(idv){
-      if(!supabase) return false;
-      const { error } = await supabase.from('wines').delete().eq('id', idv);
-      if(error){ console.error(error); toast('Errore eliminazione'); return false; }
+      await loadWines();
       return true;
     }
 
+    async function deleteWine(idv){
+      if(!supabase) return true;
+      const { error } = await supabase.from('wines').delete().eq('id', idv);
+      if(error){ console.error(error); toast('Errore eliminazione'); return false; }
+      await loadWines();
+      return true;
+    }
+
+    function render(){
+      el('statLabels').textContent=wines.length;
+      el('statBottles').textContent=wines.reduce((s,w)=>s+Number(w.quantita||0),0);
+      el('statValue').textContent=money(wines.reduce((s,w)=>s+(Number(w.quantita||0)*Number(w.prezzo||0)),0));
+      el('statReady').textContent=wines.filter(w=>w.maturita==='Pronta').reduce((s,w)=>s+Number(w.quantita||0),0);
+      const list=filtered();
+      el('empty').classList.toggle('hidden',list.length>0);
+      el('wineRows').innerHTML=list.map(w=>`<tr data-id="${w.id}" style="cursor:pointer;white-space:nowrap">
+        <td style="padding:12px;border-bottom:1px solid var(--line);font-weight:700">${esc(w.nome)}</td>
+        <td style="padding:12px;border-bottom:1px solid var(--line)">${esc(w.annata)}</td>
+        <td style="padding:12px;border-bottom:1px solid var(--line)">${esc(w.produttore)}</td>
+        <td style="padding:12px;border-bottom:1px solid var(--line)">${esc(w.vitigno)}</td>
+        <td style="padding:12px;border-bottom:1px solid var(--line)">${esc(w.territorio)}</td>
+        <td style="padding:12px;border-bottom:1px solid var(--line)">${esc(w.quantita)}</td>
+        <td style="padding:12px;border-bottom:1px solid var(--line)">${esc(w.maturita)}</td>
+      </tr><tr class="detail-row" data-detail="${w.id}" style="display:none"><td colspan="7" style="padding:0;border-bottom:1px solid var(--line)"><div style="padding:14px;background:#faf7f2;display:grid;gap:8px"><div><strong>Prezzo:</strong> ${w.prezzo?money(w.prezzo):'—'}</div><div><strong>Acquisto:</strong> ${fmtDate(w.dataAcquisto)}</div><div><strong>Posizione:</strong> ${esc(w.posizione||'—')}</div><div><strong>Note:</strong> ${esc(w.note||'Nessuna nota')}</div><div><strong>Foto:</strong> ${w.foto?'Sì':'No'}</div><div class="actions"><button class="ghost" data-edit="${w.id}" type="button">Modifica</button><button class="ghost" data-del="${w.id}" type="button">Elimina</button></div></div></td></tr>`).join('');
+      document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=e=>{e.stopPropagation();edit(b.dataset.edit)});
+      document.querySelectorAll('[data-del]').forEach(b=>b.onclick=e=>{e.stopPropagation();remove(b.dataset.del)});
+      document.querySelectorAll('tr[data-id]').forEach(tr=>tr.onclick=()=>{const d=tr.nextElementSibling; if(d) d.style.display=d.style.display==='none'?'table-row':'none';});
+      renderGroup(el('panel-produttori'),'produttore');
+      renderGroup(el('panel-territori'),'territorio');
+      if(!supabase) save();
+    }
+
+    function edit(idv){const w=wines.find(x=>x.id===idv);if(!w)return;['wineId','nome','annata','produttore','vitigno','territorio','quantita','prezzo','dataAcquisto','maturita','posizione','note'].forEach(k=>{if(el(k)) el(k).value=w[k]||''});toast('Scheda caricata');}
+    async function remove(idv){ const ok = await deleteWine(idv); if(ok===false && supabase) return; wines=wines.filter(x=>x.id!==idv); render(); toast('Eliminato'); }
     function render(){
       el('statLabels').textContent=wines.length;
       el('statBottles').textContent=wines.reduce((s,w)=>s+Number(w.quantita||0),0);
