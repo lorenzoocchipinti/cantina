@@ -101,6 +101,11 @@
   </main>
   <div id="toast" class="toast"></div>
   <script>
+
+    const SUPABASE_URL = 'https://gximycmwiwaalcxnrihw.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd4aW15bWN3aXdhYWxjeG5yaGh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxNzM5MjQsImV4cCI6MjA5MTc0OTkyNH0.usUS1vn54Sja4Q_3VJXmE4Q6Gu05wThHbyyCXCcdfBo';
+    const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
     const STORAGE_KEY='cantinaal-v1'; let wines=[]; let query=''; let maturity='Tutte';
     const el=id=>document.getElementById(id);
     const toast=t=>{const x=el('toast');x.textContent=t;x.classList.add('show');setTimeout(()=>x.classList.remove('show'),1800)};
@@ -114,6 +119,56 @@
     function renderGroup(target,key){ target.innerHTML = grouped(key).map(x=>`<div class="card"><strong>${esc(x.key)}</strong><div class="meta">${x.labels} etichette · ${x.qty} bottiglie</div></div>`).join('') || '<div class="empty">Nessun dato.</div>'; }
     function setTab(tab){ document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab)); el('panel-bottiglie').classList.toggle('hidden', tab!=='bottiglie'); el('panel-produttori').classList.toggle('hidden', tab!=='produttori'); el('panel-territori').classList.toggle('hidden', tab!=='territori'); }
     document.addEventListener('click', e=>{const b=e.target.closest('[data-tab]'); if(b) setTab(b.dataset.tab)});
+
+    async function loadWines(){
+      if(!supabase){ load(); render(); return; }
+      const { data, error } = await supabase.from('wines').select('*').order('created_at', { ascending: false });
+      if(error){ console.error(error); toast('Errore caricamento'); load(); render(); return; }
+      wines = (data || []).map(w => ({
+        id: w.id,
+        nome: w.nome,
+        annata: w.annata,
+        produttore: w.produttore,
+        vitigno: w.vitigno,
+        territorio: w.territorio,
+        quantita: String(w.quantita ?? 0),
+        prezzo: w.prezzo ?? '',
+        dataAcquisto: w.data_acquisto ?? '',
+        maturita: w.maturita ?? 'Da attendere',
+        posizione: w.posizione ?? '',
+        note: w.note ?? '',
+        foto: w.foto ?? ''
+      }));
+      render();
+    }
+    async function saveWine(rec){
+      if(!supabase){ return false; }
+      const payload = {
+        id: rec.id,
+        nome: rec.nome,
+        annata: rec.annata,
+        produttore: rec.produttore,
+        vitigno: rec.vitigno,
+        territorio: rec.territorio,
+        quantita: Number(rec.quantita||0),
+        prezzo: rec.prezzo ? Number(rec.prezzo) : null,
+        data_acquisto: rec.dataAcquisto || null,
+        maturita: rec.maturita,
+        posizione: rec.posizione || null,
+        note: rec.note || null,
+        foto: rec.foto || null
+      };
+      const { error } = await supabase.from('wines').upsert(payload);
+      if(error) { console.error(error); toast('Errore salvataggio'); return false; }
+      return true;
+    }
+    async function deleteWine(idv){
+      if(!supabase) return false;
+      const { error } = await supabase.from('wines').delete().eq('id', idv);
+      if(error){ console.error(error); toast('Errore eliminazione'); return false; }
+      return true;
+    }
+
     function render(){
       el('statLabels').textContent=wines.length;
       el('statBottles').textContent=wines.reduce((s,w)=>s+Number(w.quantita||0),0);
@@ -121,7 +176,7 @@
       el('statReady').textContent=wines.filter(w=>w.maturita==='Pronta').reduce((s,w)=>s+Number(w.quantita||0),0);
       const list=filtered();
       el('empty').classList.toggle('hidden',list.length>0);
-      el('wineRows').innerHTML=list.map(w=>`<tr data-id="${w.id}" style="cursor:pointer">
+      el('wineRows').innerHTML=list.map(w=>`<tr data-id="${w.id}" style="cursor:pointer;white-space:nowrap">
         <td style="padding:12px;border-bottom:1px solid var(--line);font-weight:700">${esc(w.nome)}</td>
         <td style="padding:12px;border-bottom:1px solid var(--line)">${esc(w.annata)}</td>
         <td style="padding:12px;border-bottom:1px solid var(--line)">${esc(w.produttore)}</td>
@@ -135,22 +190,23 @@
       document.querySelectorAll('tr[data-id]').forEach(tr=>tr.onclick=()=>{const d=tr.nextElementSibling; if(d) d.style.display=d.style.display==='none'?'table-row':'none';});
       renderGroup(el('panel-produttori'),'produttore');
       renderGroup(el('panel-territori'),'territorio');
-      save();
+      if(!supabase) save();
     }
     function edit(idv){const w=wines.find(x=>x.id===idv);if(!w)return;['wineId','nome','annata','produttore','vitigno','territorio','quantita','prezzo','dataAcquisto','maturita','posizione','note'].forEach(k=>{if(el(k)) el(k).value=w[k]||''});toast('Scheda caricata');}
-    function remove(idv){wines=wines.filter(x=>x.id!==idv);render();toast('Eliminato');}
+    async function remove(idv){ const ok = await deleteWine(idv); if(ok===false && supabase) return; wines=wines.filter(x=>x.id!==idv); render(); toast('Eliminato'); }
     el('wineForm').onsubmit=async e=>{e.preventDefault(); const old=wines.find(x=>x.id===el('wineId').value); let foto=old?.foto||''; const file=el('foto').files[0]; if(file) foto=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(file);});
       const rec={id:el('wineId').value||uid(),nome:el('nome').value.trim(),annata:el('annata').value.trim(),produttore:el('produttore').value.trim(),vitigno:el('vitigno').value.trim(),territorio:el('territorio').value.trim(),quantita:String(Number(el('quantita').value||0)),prezzo:el('prezzo').value.trim(),dataAcquisto:el('dataAcquisto').value,maturita:el('maturita').value,posizione:el('posizione').value.trim(),note:el('note').value.trim(),foto};
       if(!rec.nome||!rec.annata||!rec.produttore||!rec.vitigno||!rec.territorio){toast('Compila i campi obbligatori');return}
-      const i=wines.findIndex(x=>x.id===rec.id); if(i>=0) wines[i]=rec; else wines.unshift(rec); e.target.reset(); el('wineId').value=''; render(); toast('Salvato');
+      const ok = await saveWine(rec); if(ok===false && supabase) return; const i=wines.findIndex(x=>x.id===rec.id); if(i>=0) wines[i]=rec; else wines.unshift(rec); e.target.reset(); el('wineId').value=''; render(); toast('Salvato');
     };
     el('resetBtn').onclick=()=>{el('wineForm').reset(); el('wineId').value=''; toast('Modulo pulito')};
     el('searchInput').oninput=e=>{query=e.target.value.toLowerCase().trim(); render()};
     el('filterMaturity').onchange=e=>{maturity=e.target.value; render()};
     el('exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify(wines,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='cantinaal.json';a.click();toast('Esportato')};
     el('importFile').onchange=async e=>{const f=e.target.files[0]; if(!f)return; try{wines=JSON.parse(await f.text()); render(); toast('Importato')}catch{toast('File non valido')} e.target.value=''};
-    load(); render(); setTab('bottiglie');
+    loadWines(); setTab('bottiglie');
     if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}))}
   </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </body>
 </html>
